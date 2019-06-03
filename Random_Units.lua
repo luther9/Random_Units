@@ -1,7 +1,8 @@
-local onEvent = wesnoth.require'lua/on_event'
 local H = wesnoth.require'lua/helper.lua'
 local W = wesnoth.wml_actions
+local onEvent = wesnoth.require'lua/on_event'
 
+-- Execute f for each result from iter.
 local function forEach(f, iter)
   return (function(iter, ...)
     if iter then
@@ -11,6 +12,7 @@ local function forEach(f, iter)
   end)(iter())
 end
 
+-- Convert a for-loop iterator to a functional iterator.
 local function forToIter(iter, state, key)
   return function()
     return (function(key, ...)
@@ -24,12 +26,14 @@ end
 
 local Array = {
 
+  -- Functional version of ipairs.
   ipairs = function(self)
     return forToIter(ipairs(self))
   end,
 
 }
 
+-- Functional version of H.child_range.
 local function childRange(cfg, name)
   return forToIter(H.child_range(cfg, name))
 end
@@ -37,6 +41,7 @@ end
 -- The list of all unit types that we choose from.
 local allTypes = {}
 
+-- Choose a random unit type to be the given side's recruit.
 local function setRandomRecruit(side)
   W.set_recruit{
     side = side,
