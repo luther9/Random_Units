@@ -1,6 +1,5 @@
 local onEvent = wesnoth.require'lua/on_event'
 local H = wesnoth.require'lua/helper.lua'
-local T = wml.tag
 local W = wesnoth.wml_actions
 
 local function forEach(f, iter)
@@ -23,35 +22,46 @@ local function forToIter(iter, state, key)
   end
 end
 
+local Array = {
+
+  ipairs = function(self)
+    return forToIter(ipairs(self))
+  end,
+
+}
+
 local function childRange(cfg, name)
   return forToIter(H.child_range(cfg, name))
 end
 
-local function ipairsIter(t)
-  return forToIter(ipairs(t))
-end
+-- The list of all unit types that we choose from.
+local allTypes = {}
 
 local function setRandomRecruit(side)
-  local units = H.get_variable_array('random_units_type')
   W.set_recruit{
     side = side,
-    recruit = units[wesnoth.random(#units)].id,
+    recruit = allTypes[wesnoth.random(#allTypes)]
   }
 end
 
-function W.randomUnits_init(cfg)
+-- This tag must contain a [units] tag. Store all unit types from [units] in the
+-- Lua state for use when randomly choosing units.
+function W.randomUnits_loadUnitTypes(cfg)
   forEach(
-  function(type)
-    W.set_variables{
-      name = 'random_units_type',
-      mode = 'append',
-      T.value{id = type.id},
-    }
-  end,
-  childRange(H.get_child(cfg, 'units'), 'unit_type'))
-  forEach(
-    function(side) setRandomRecruit(side) end,
-    ipairsIter(wesnoth.sides))
+    function(type)
+      table.insert(allTypes, type.id)
+    end,
+    childRange(H.get_child(cfg, 'units'), 'unit_type'))
 end
 
+-- Initialize each side's recruit at the beginning of the scenario.
+onEvent(
+  'prestart',
+  function()
+    forEach(
+      function(side) setRandomRecruit(side) end,
+      Array.ipairs(wesnoth.sides))
+  end)
+
+-- Each time a side recruits, replace its recruitable unit.
 onEvent('recruit', function() setRandomRecruit(wesnoth.current.side) end)
