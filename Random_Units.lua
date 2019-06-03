@@ -1,4 +1,4 @@
-local on_event = wesnoth.require'lua/on_event'
+local onEvent = wesnoth.require'lua/on_event'
 local H = wesnoth.require'lua/helper.lua'
 local T = wml.tag
 local W = wesnoth.wml_actions
@@ -23,15 +23,15 @@ local function forToIter(iter, state, key)
   end
 end
 
-local function child_range(cfg, name)
+local function childRange(cfg, name)
   return forToIter(H.child_range(cfg, name))
 end
 
-local function ipairs_iter(t)
+local function ipairsIter(t)
   return forToIter(ipairs(t))
 end
 
-local function set_random_recruit(side)
+local function setRandomRecruit(side)
   local units = H.get_variable_array('random_units_type')
   W.set_recruit{
     side = side,
@@ -39,7 +39,7 @@ local function set_random_recruit(side)
   }
 end
 
-function W.random_units_init(cfg)
+function W.randomUnits_init(cfg)
   forEach(
   function(type)
     W.set_variables{
@@ -48,10 +48,10 @@ function W.random_units_init(cfg)
       T.value{id = type.id},
     }
   end,
-  child_range(H.get_child(cfg, 'units'), 'unit_type'))
+  childRange(H.get_child(cfg, 'units'), 'unit_type'))
   forEach(
-  function(side) set_random_recruit(side) end,
-  ipairs_iter(wesnoth.sides))
+    function(side) setRandomRecruit(side) end,
+    ipairsIter(wesnoth.sides))
 end
 
-on_event('recruit', function() set_random_recruit(wesnoth.current.side) end)
+onEvent('recruit', function() setRandomRecruit(wesnoth.current.side) end)
