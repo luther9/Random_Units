@@ -54,12 +54,28 @@ local function _ipairsIter(t, i)
   end
 end
 
+-- Return an iterator that yields {index, value} pairs from array t.
 local function ipairsIter(t)
   return _ipairsIter(t, 1)
 end
 
+-- Return a function that takes a table and returns the value that key points
+-- to.
+local function getter(key)
+  return function(t)
+    return t[key]
+  end
+end
+
+-- Return a function that passes its arguments to f and negates the result.
+local function negate(f)
+  return function(...)
+    return not f(...)
+  end
+end
+
 local function arrayValues(t)
-  return map(function(pair) return pair[2] end, ipairsIter(t))
+  return map(getter(2), ipairsIter(t))
 end
 
 -- Convert a for loop iterator to a functional iterator. Only yield the first
@@ -108,10 +124,14 @@ end
 
 local function randomTypeWeighted(pool)
   return findChoice(
-    wesnoth.random(
-      sum(map(function(t) return t.weight end, arrayValues(pool)))),
+    wesnoth.random(sum(map(getter('weight'), arrayValues(pool)))),
     pool,
     1)
+end
+
+local function randomTypeFair(pool)
+  local i = wesnoth.random(#pool)
+  return pool[i], i
 end
 
 local randomType = V.randomUnits_rarity and randomTypeWeighted or randomTypeFair
@@ -139,7 +159,7 @@ function W.randomUnits_loadUnitTypes(cfg)
       table.insert(allTypes, {id = unitType.id, weight = 6 - unitType.level})
     end,
     filter(
-      function(unitType) return not unitType.do_not_list end,
+      negate(getter('do_not_list')),
       forToIter1(H.child_range(H.get_child(cfg, 'units'), 'unit_type'))))
 end
 
