@@ -99,20 +99,6 @@ local onEvent = wesnoth.require'lua/on_event'
 -- [randomUnits_loadUnitTypes] during the preload event to initialize it.
 local allTypes = {}
 
-local function setRandomRecruit(side)
-  if V.randomUnits_allowRepeats then
-    side.recruit = {allTypes[wesnoth.random(#allTypes)].id}
-  else
-    if not wesnoth.get_variable'randomUnits_pool' then
-      H.set_variable_array('randomUnits_pool', allTypes)
-    end
-    local pool = H.get_variable_array'randomUnits_pool'
-    local i = wesnoth.random(#pool)
-    side.recruit = {pool[i].id}
-    wesnoth.set_variable(('randomUnits_pool[%d]'):format(i - 1))
-  end
-end
-
 local function findChoice(totalWeight, pool, i)
   local unitType = pool[i]
   local weight = unitType.weight
@@ -139,6 +125,15 @@ local randomType = V.randomUnits_rarity and randomTypeWeighted or randomTypeFair
 -- Choose a unit type from allTypes.
 local function getRandomRecruitWithRepeats()
   return randomType(allTypes)
+end
+
+local function getRandomRecruitNoRepeats()
+  if not V.randomUnits_pool then
+    H.set_variable_array('randomUnits_pool', allTypes)
+  end
+  local unitType, i = randomType(H.get_variable_array'randomUnits_pool')
+  wesnoth.set_variable(('randomUnits_pool[%d]'):format(i - 1))
+  return unitType
 end
 
 local getRandomRecruit =
