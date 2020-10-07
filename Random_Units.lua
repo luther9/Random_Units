@@ -155,9 +155,9 @@ onEvent(
   'prestart',
   function()
     for _, side in ipairs(wesnoth.sides) do
-      -- TODO: What should we do when a side is defined with an empty recruit
-      -- list?
-      setRandomRecruit(side, options)
+      if side.recruit[1] then
+	setRandomRecruit(side, options)
+      end
     end
   end)
 
