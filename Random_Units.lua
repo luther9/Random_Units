@@ -1,3 +1,5 @@
+-- PURE FUNCTIONS
+
 -- Return an array with only the elements from a where f returns true.
 local function filter(f, a)
   local new = {}
@@ -47,6 +49,34 @@ local function negate(f)
   end
 end
 
+local function findChoice(totalWeight, pool, f, i)
+  local unitType = pool[i]
+  local weight = f(unitType)
+  if totalWeight <= weight then
+    return unitType, i
+  end
+  return findChoice(totalWeight - weight, pool, f, i + 1)
+end
+
+-- A level-based probability weight.
+local function levelWeight(level)
+  return 6 - level
+end
+
+local function keys(t)
+  local array = {}
+  for k in pairs(t) do
+    table.insert(array, k)
+  end
+  return array
+end
+
+local function identity(...)
+  return ...
+end
+
+-- IMPURE FUNCTIONS
+
 local H = wesnoth.require'lua/helper.lua'
 local V = wml.variables
 local W = wesnoth.wml_actions
@@ -56,59 +86,66 @@ local onEvent = wesnoth.require'lua/on_event'
 -- [randomUnits_loadUnitTypes] during the preload event to initialize it.
 local allTypes = {}
 
-local function findChoice(totalWeight, pool, i)
-  local unitType = pool[i]
-  local weight = unitType.weight
-  if totalWeight <= weight then
-    return unitType, i
-  end
-  return findChoice(totalWeight - weight, pool, i + 1)
+local function chooseBiased(pool, f)
+  return findChoice(wesnoth.random(sum(map(f, pool))), pool, f, 1)
 end
 
-local function randomTypeWeighted(pool)
-  return findChoice(
-    wesnoth.random(sum(map(getter'weight', pool))),
-    pool,
-    1)
-end
-
-local function randomTypeFair(pool)
+local function chooseFair(pool)
   local i = wesnoth.random(#pool)
   return pool[i], i
 end
 
-local randomType = V.randomUnits_rarity and randomTypeWeighted or randomTypeFair
-
--- Choose a unit type from allTypes.
-local function getRandomRecruitWithRepeats()
-  return randomType(allTypes)
-end
-
-local function getRandomRecruitNoRepeats()
-  if not V.randomUnits_pool then
-    H.set_variable_array('randomUnits_pool', allTypes)
+-- Set a single recruit for side. unitType is a table with an id field. i is the
+-- index to remove from the main pool.
+local function setRecruit(side, unitType, allowRepeats, i)
+  side.recruit = {unitType.id}
+  if not allowRepeats then
+    wesnoth.set_variable(('randomUnits_pool[%d]'):format(i - 1))
   end
-  local unitType, i = randomType(H.get_variable_array'randomUnits_pool')
-  wesnoth.set_variable(('randomUnits_pool[%d]'):format(i - 1))
-  return unitType
 end
-
-local getRandomRecruit =
-  V.randomUnits_allowRepeats and getRandomRecruitWithRepeats
-  or getRandomRecruitNoRepeats
 
 -- Choose a random unit type to be the given side's recruit. The argument is a
--- side number.
-local function setRandomRecruit(side)
-  side.recruit = {getRandomRecruit().id}
+-- side.
+local function setRandomRecruit(side, options)
+  if not (options.allowRepeats or V.randomUnits_pool) then
+    H.set_variable_array('randomUnits_pool', allTypes)
+  end
+  local pool =
+    options.allowRepeats and allTypes or H.get_variable_array'randomUnits_pool'
+  local choose = options.rarity and chooseBiased or chooseFair
+  if options.byLevel then
+    local weightTable = {}
+    for i, unitType in ipairs(pool) do
+      local weight = unitType.weight
+      local thisWeight = weightTable[weight] or {}
+      table.insert(thisWeight, {i = i, id = unitType.id})
+      weightTable[weight] = thisWeight
+    end
+    local unit = chooseFair(weightTable[choose(keys(weightTable), identity)])
+    setRecruit(side, unit, options.allowReapeats, unit.i)
+  else
+    local unit, i = choose(pool, getter'weight')
+    setRecruit(side, unit, options.allowReapeats, i)
+  end
 end
+
+local options = {
+  allowRepeats = V.randomUnits_allowRepeats,
+  rarity = V.randomUnits_rarity,
+  byLevel = V.randomUnits_byLevel,
+}
 
 -- This tag must contain a [units] tag. Store all unit types from [units] in the
 -- Lua state for use when randomly choosing units.
 function W.randomUnits_loadUnitTypes(cfg)
   for unitType in H.child_range(H.get_child(cfg, 'units'), 'unit_type') do
     if not unitType.do_not_list then
-      table.insert(allTypes, {id = unitType.id, weight = 6 - unitType.level})
+      table.insert(
+	allTypes,
+	{
+	  id = unitType.id,
+	  weight = levelWeight(unitType.level),
+	})
     end
   end
 end
@@ -118,11 +155,13 @@ onEvent(
   'prestart',
   function()
     for _, side in ipairs(wesnoth.sides) do
-      setRandomRecruit(side)
+      -- TODO: What should we do when a side is defined with an empty recruit
+      -- list?
+      setRandomRecruit(side, options)
     end
   end)
 
 -- Each time a side recruits, replace its recruitable unit.
 onEvent(
   'recruit',
-  function() setRandomRecruit(wesnoth.sides[wesnoth.current.side]) end)
+  function() setRandomRecruit(wesnoth.sides[wesnoth.current.side], options) end)
