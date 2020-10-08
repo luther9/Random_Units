@@ -122,10 +122,10 @@ local function setRandomRecruit(side, options)
       weightTable[weight] = thisWeight
     end
     local unit = chooseFair(weightTable[choose(keys(weightTable), identity)])
-    setRecruit(side, unit, options.allowReapeats, unit.i)
+    setRecruit(side, unit, options.allowRepeats, unit.i)
   else
     local unit, i = choose(pool, getter'weight')
-    setRecruit(side, unit, options.allowReapeats, i)
+    setRecruit(side, unit, options.allowRepeats, i)
   end
 end
 
