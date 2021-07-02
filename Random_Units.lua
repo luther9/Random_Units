@@ -159,11 +159,12 @@ local options = {
 function W.randomUnits_loadUnitTypes(cfg)
   for unitType in H.child_range(H.get_child(cfg, 'units'), 'unit_type') do
     if not unitType.do_not_list then
+      local id = unitType.id
       table.insert(
 	allTypes,
 	{
-	  id = unitType.id,
-	  weight = levelWeight(unitType.level),
+	  id = id,
+	  weight = levelWeight(wesnoth.unit_types[id].level),
 	})
     end
   end
