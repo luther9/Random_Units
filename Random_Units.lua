@@ -77,11 +77,6 @@ local function findChoice(totalWeight, pool, f, i)
   return findChoice(totalWeight - weight, pool, f, i + 1)
 end
 
--- A level-based probability weight.
-local function levelWeight(level)
-  return 6 - level
-end
-
 local function keys(t)
   local array = {}
   for k in pairs(t) do
@@ -101,10 +96,6 @@ local V = wml.variables
 local W = wesnoth.wml_actions
 local onEvent = wesnoth.require'lua/on_event'
 
--- The list of all unit types that we choose from. We must call
--- [randomUnits_loadUnitTypes] during the preload event to initialize it.
-local allTypes = {}
-
 local function chooseBiased(pool, f)
   return findChoice(wesnoth.random(sum(map(f, pool))), pool, f, 1)
 end
@@ -123,19 +114,25 @@ local function setRecruit(side, unitType, allowRepeats, i)
   end
 end
 
+-- Get the probability weight of the given unit type.
+local function unitWeight(unitType)
+  return 6 - wesnoth.unit_types[unitType.id].level
+end
+
 -- Choose a random unit type to be the given side's recruit. The argument is a
 -- side.
 local function setRandomRecruit(side, options)
   if not (options.allowRepeats or V.randomUnits_pool) then
-    H.set_variable_array('randomUnits_pool', allTypes)
+    H.set_variable_array('randomUnits_pool', options.allTypes)
   end
   local pool =
-    options.allowRepeats and allTypes or H.get_variable_array'randomUnits_pool'
+    options.allowRepeats and options.allTypes
+    or H.get_variable_array'randomUnits_pool'
   local choose = options.rarity and chooseBiased or chooseFair
   if options.byLevel then
     local weightTable = {}
     for i, unitType in ipairs(pool) do
-      local weight = unitType.weight
+      local weight = unitWeight(unitType)
       local thisWeight = weightTable[weight] or {}
       table.insert(thisWeight, {i = i, id = unitType.id})
       weightTable[weight] = thisWeight
@@ -143,32 +140,30 @@ local function setRandomRecruit(side, options)
     local unit = chooseFair(weightTable[choose(keys(weightTable), identity)])
     setRecruit(side, unit, options.allowRepeats, unit.i)
   else
-    local unit, i = choose(pool, getter'weight')
+    local unit, i = choose(pool, unitWeight)
     setRecruit(side, unit, options.allowRepeats, i)
   end
 end
 
-local options = {
+-- The list of all unit types that we choose from.
+local allTypes <const> = {}
+-- The wiki says that wesnoth.unit_types is not MP-safe, but nobody can figure
+-- out how, since each scenario only loads the unit types it needs.
+for id, unitType in pairs(wesnoth.unit_types) do
+  -- do_not_list is probably just nil. If we see a Fog Clearer, we'll try __cfg
+  -- and see if that works.
+  if not unitType.do_not_list then
+    table.insert(allTypes, {id = id})
+  end
+end
+table.sort(allTypes, function(a, b) return a.id < b.id end)
+
+local options <const> = {
   allowRepeats = V.randomUnits_allowRepeats,
   rarity = V.randomUnits_rarity,
   byLevel = V.randomUnits_byLevel,
+  allTypes = allTypes,
 }
-
--- This tag must contain a [units] tag. Store all unit types from [units] in the
--- Lua state for use when randomly choosing units.
-function W.randomUnits_loadUnitTypes(cfg)
-  for unitType in H.child_range(H.get_child(cfg, 'units'), 'unit_type') do
-    if not unitType.do_not_list then
-      local id = unitType.id
-      table.insert(
-	allTypes,
-	{
-	  id = id,
-	  weight = levelWeight(wesnoth.unit_types[id].level),
-	})
-    end
-  end
-end
 
 -- Initialize each side's recruit at the beginning of the scenario.
 onEvent(
