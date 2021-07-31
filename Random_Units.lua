@@ -150,9 +150,7 @@ local allTypes <const> = {}
 -- The wiki says that wesnoth.unit_types is not MP-safe, but nobody can figure
 -- out how, since each scenario only loads the unit types it needs.
 for id, unitType in pairs(wesnoth.unit_types) do
-  -- do_not_list is probably just nil. If we see a Fog Clearer, we'll try __cfg
-  -- and see if that works.
-  if not unitType.do_not_list then
+  if not unitType.__cfg.do_not_list then
     table.insert(allTypes, {id = id})
   end
 end
