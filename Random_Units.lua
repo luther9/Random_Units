@@ -19,53 +19,12 @@
 
 -- PURE FUNCTIONS
 
--- Return an array with only the elements from a where f returns true.
-local function filter(f, a)
-  local new = {}
-  for _, v in ipairs(a) do
-    if f(v) then
-      table.insert(new, v)
-    end
-  end
-  return new
-end
+-- This library is not documented, but hopefully, it will work. It's in the
+-- Wesnoth source at data/lua/functional.lua.
+local fp <const> = wesnoth.require'lua/functional'
 
-local function map(f, a)
-  local new = {}
-  for i, v in ipairs(a) do
-    new[i] = f(v)
-  end
-  return new
-end
-
-local function fold(f, a, init)
-  local function h(init, i)
-    local v = a[i]
-    if v == nil then
-      return init
-    end
-    return h(f(init, v), i + 1)
-  end
-  return h(init, 1)
-end
-
-local function sum(iter)
-  return fold(function(a, b) return a + b end, iter, 0)
-end
-
--- Return a function that takes a table and returns the value that key points
--- to.
-local function getter(key)
-  return function(t)
-    return t[key]
-  end
-end
-
--- Return a function that passes its arguments to f and negates the result.
-local function negate(f)
-  return function(...)
-    return not f(...)
-  end
+local function sum(array)
+  return fp.reduce(array, '+')
 end
 
 local function findChoice(totalWeight, pool, f, i)
@@ -97,7 +56,7 @@ local W = wesnoth.wml_actions
 local onEvent = wesnoth.require'lua/on_event'
 
 local function chooseBiased(pool, f)
-  return findChoice(wesnoth.random(sum(map(f, pool))), pool, f, 1)
+  return findChoice(wesnoth.random(sum(fp.map(pool, f))), pool, f, 1)
 end
 
 local function chooseFair(pool)
@@ -106,10 +65,11 @@ local function chooseFair(pool)
 end
 
 -- Set a single recruit for side. unitType is a table with an id field. i is the
--- index to remove from the main pool.
-local function setRecruit(side, unitType, allowRepeats, i)
+-- index to remove from the main pool. If i is false, don't remove the unit
+-- type.
+local function setRecruit(side, unitType, i)
   side.recruit = {unitType.id}
-  if not allowRepeats then
+  if i then
     wesnoth.set_variable(('randomUnits_pool[%d]'):format(i - 1))
   end
 end
@@ -129,6 +89,7 @@ local function setRandomRecruit(side, options)
     options.allowRepeats and options.allTypes
     or H.get_variable_array'randomUnits_pool'
   local choose = options.rarity and chooseBiased or chooseFair
+  local removeChoice <const> = not options.allowRepeats
   if options.byLevel then
     local weightTable = {}
     for i, unitType in ipairs(pool) do
@@ -138,10 +99,10 @@ local function setRandomRecruit(side, options)
       weightTable[weight] = thisWeight
     end
     local unit = chooseFair(weightTable[choose(keys(weightTable), identity)])
-    setRecruit(side, unit, options.allowRepeats, unit.i)
+    setRecruit(side, unit, removeChoice and unit.i)
   else
     local unit, i = choose(pool, unitWeight)
-    setRecruit(side, unit, options.allowRepeats, i)
+    setRecruit(side, unit, removeChoice and i)
   end
 end
 
