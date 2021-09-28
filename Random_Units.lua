@@ -128,14 +128,28 @@ local options <const> = {
 onEvent(
   'prestart',
   function()
+    local sides <const> = {}
     for _, side in ipairs(wesnoth.sides) do
-      if side.recruit[1] then
+      -- We check side.recruit[1] to prevent adding recruits to a side that
+      -- isn't supposed to recruit at all.
+      if
+	side.recruit[1]
+	and (V.randomUnits_human or side.controller ~= 'human')
+	and (V.randomUnits_ai or side.controller ~= 'ai')
+      then
 	setRandomRecruit(side, options)
+	table.insert(sides, side.side)
       end
     end
+    V.randomUnits_sides = table.concat(sides, ',')
   end)
 
 -- Each time a side recruits, replace its recruitable unit.
 onEvent(
   'recruit',
-  function() setRandomRecruit(wesnoth.sides[wesnoth.current.side], options) end)
+  function()
+    local side <const> = wesnoth.current.side
+    if tostring(V.randomUnits_sides):find(side, 1, true) then
+      setRandomRecruit(wesnoth.sides[wesnoth.current.side], options)
+    end
+  end)
